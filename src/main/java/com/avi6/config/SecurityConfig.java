@@ -31,7 +31,6 @@ public class SecurityConfig {
 		http
 		.authorizeRequests()
 			.requestMatchers("/**","/login","/register").permitAll()
-			.requestMatchers("/community/new-talk").permitAll()
 			 .requestMatchers("/community/**").authenticated()
 			.anyRequest().authenticated()
 		.and()

@@ -79,42 +79,74 @@ public class CommuController {
         return "redirect:/community";
     }
     
-    @GetMapping("/edit-talk/{id}")
-    public String editTalkForm(@PathVariable Long id, Model model) {
-        Optional<BookTalk> optionalBookTalk = bookTalkService.getBookTalkById(id);
-        BookTalk bookTalk = optionalBookTalk.orElse(null); // Optional에서 BookTalk 추출
+    @GetMapping("/view-talk/{id}")
+    public String viewTalk(@PathVariable("id") Long id, Model model) {
+        Optional<BookTalk> talk = bookTalkService.getBookTalkById(id);
+        model.addAttribute("talk", talk);
+        return "community/view-talk";
+    }
 
-        if (bookTalk == null) {
-            // 처리할 예외 상황이나 에러 처리 로직 추가
-            throw new RuntimeException("BookTalk not found with id: " + id);
+    @GetMapping("/edit-talk/{id}")
+    public String editTalkForm(@PathVariable("id") Long id, Model model, Principal principal) {
+        // 사용자 인증 확인
+        if (principal == null) {
+            return "redirect:/login";
         }
 
-        // BookTalk을 DTO로 변환하여 템플릿에 전달
-        BookTalkDTO bookTalkDTO = new BookTalkDTO();
-        bookTalkDTO.setId(bookTalk.getId());
-        bookTalkDTO.setTitle(bookTalk.getTitle());
-        bookTalkDTO.setContent(bookTalk.getContent());
-        model.addAttribute("bookTalkDTO", bookTalkDTO);
+        // 글 수정 폼을 위해 해당 글 정보 가져오기
+        Optional<BookTalk> talk = bookTalkService.getBookTalkById(id);
 
+        // 현재 사용자 정보 전달
+        model.addAttribute("username", principal.getName());
+        model.addAttribute("talk", talk);
         return "community/edit-talk";
     }
 
-    @PostMapping("/edit-talk/{id}")
-    public String updateTalk(@PathVariable Long id, @ModelAttribute("bookTalkDTO") BookTalkDTO bookTalkDTO) {
-        // 글 id를 기반으로 해당 글을 가져옴
+    @PutMapping("/edit-talk/{id}")
+    public String editTalk(@PathVariable("id") Long id, @ModelAttribute("talk") BookTalk updatedTalk,
+                           Principal principal) {
+        // 사용자 인증 확인
+        if (principal == null) {
+            return "redirect:/login";
+        }
+
+        // 기존 글 정보 가져오기
         Optional<BookTalk> optionalExistingTalk = bookTalkService.getBookTalkById(id);
         
-        // Optional에서 BookTalk 객체 추출
-        BookTalk existingTalk = optionalExistingTalk.orElseThrow(() -> new RuntimeException("BookTalk not found with id: " + id));
+        // 옵셔널에서 실제 객체를 가져오지 못한 경우 처리
+        if (!optionalExistingTalk.isPresent()) {
+            return "redirect:/community";
+        }
         
-        // 업데이트할 내용 설정
-        existingTalk.setTitle(bookTalkDTO.getTitle());
-        existingTalk.setContent(bookTalkDTO.getContent());
-        
-        // 글 업데이트
+        BookTalk existingTalk = optionalExistingTalk.get();
+
+        // 권한 확인: 현재 사용자가 글의 작성자인지 검사
+        if (!existingTalk.getAuthor().getUsername().equals(principal.getName())) {
+            return "redirect:/community";
+        }
+
+        // 기존 글 정보 업데이트
+        existingTalk.setTitle(updatedTalk.getTitle());
+        existingTalk.setContent(updatedTalk.getContent());
+
+        // 수정된 글 저장
         bookTalkService.saveBookTalk(existingTalk);
-        
-        // 수정된 글의 상세 페이지로 리다이렉트 또는 커뮤니티 페이지로 리다이렉트
+
+        // 수정 후 상세 페이지로 리다이렉트
+        return "redirect:/community/view-talk/" + id;
+    }
+    
+    @DeleteMapping("/delete-talk/{id}")
+    public String deleteTalk(@PathVariable("id") Long id, Principal principal) {
+        // 사용자 인증 확인
+        if (principal == null) {
+            return "redirect:/login";
+        }
+
+        // 글 삭제: 해당 ID의 글을 삭제합니다.
+        bookTalkService.deleteBookTalk(id);
+
+        // 삭제 후 커뮤니티 페이지로 리다이렉트
         return "redirect:/community";
     }
 
